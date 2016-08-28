@@ -1,11 +1,11 @@
-apply plugin: 'com.android.library'
+apply plugin: 'android-library'
 
 buildscript {
     repositories {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.0-beta1'
+        classpath 'com.android.tools.build:gradle:1.2.2'
     }
 }
 repositories {
