@@ -24,6 +24,8 @@ import com.rampo.updatechecker.notice.Notice;
 import com.rampo.updatechecker.notice.Notification;
 import com.rampo.updatechecker.store.Store;
 
+import java.lang.ref.WeakReference;
+
 /**
  * UpdateChecker is a class that can be used by Android Developers to increase the number of their apps' updates.
  *
@@ -41,7 +43,7 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
     static int DEFAULT_NOTICE_ICON_RES_ID = 0;
     static Notice DEFAULT_NOTICE = Notice.DIALOG;
 
-    static Activity mActivity;
+    static WeakReference<Activity> mActivity;
     static Store mStore;
     static int mSuccessfulChecksRequired;
     static Notice mNotice;
@@ -51,7 +53,7 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
     static boolean mCustomImplementation;
 
     public UpdateChecker(Activity activity) {
-        mActivity = activity;
+        mActivity = new WeakReference<>(activity);
         mStore = DEFAULT_STORE;
         mSuccessfulChecksRequired = DEFAULT_SUCCESSFUL_CHECKS_REQUIRED;
         mNotice = DEFAULT_NOTICE;
@@ -62,7 +64,7 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
     }
 
     public UpdateChecker(Activity activity, UpdateCheckerResult updateCheckerResult) {
-        mActivity = activity;
+        mActivity = new WeakReference<>(activity);
         mStore = DEFAULT_STORE;
         mSuccessfulChecksRequired = DEFAULT_SUCCESSFUL_CHECKS_REQUIRED;
         mNotice = DEFAULT_NOTICE;
@@ -125,8 +127,10 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
      * Start the process
      */
     public static void start() {
-        ASyncCheck asynctask = new ASyncCheck(mStore, mCheckResultCallback, mActivity);
-        asynctask.execute();
+        if (mActivity.get() != null) {
+            ASyncCheck asynctask = new ASyncCheck(mStore, mCheckResultCallback, mActivity.get());
+            asynctask.execute();
+        }
     }
 
     /**
@@ -136,16 +140,17 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
      */
     @Override
     public void versionDownloadableFound(String versionDownloadable) {
-        if (Comparator.isVersionDownloadableNewer(mActivity, versionDownloadable)) {
-            if (hasToShowNotice(versionDownloadable) && !hasUserTappedToNotShowNoticeAgain(versionDownloadable)) {
-                mLibraryResultCallaback.foundUpdateAndShowIt(versionDownloadable);
-            } else {
-                mLibraryResultCallaback.foundUpdateAndDontShowIt(versionDownloadable);
+        if (mActivity.get() != null) {
+            if (Comparator.isVersionDownloadableNewer(mActivity.get(), versionDownloadable)) {
+                if (hasToShowNotice(versionDownloadable) && !hasUserTappedToNotShowNoticeAgain(versionDownloadable)) {
+                    mLibraryResultCallaback.foundUpdateAndShowIt(versionDownloadable);
+                } else {
+                    mLibraryResultCallaback.foundUpdateAndDontShowIt(versionDownloadable);
+                }
+            } else { // No new update available
+                mLibraryResultCallaback.returnUpToDate(versionDownloadable);
             }
-        } else { // No new update available
-            mLibraryResultCallaback.returnUpToDate(versionDownloadable);
         }
-
     }
 
     /**
@@ -249,16 +254,20 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
      * @see com.rampo.updatechecker.notice.Dialog#userHasTappedToNotShowNoticeAgain(android.content.Context, String)
      */
     private boolean hasUserTappedToNotShowNoticeAgain(String versionDownloadable) {
-        SharedPreferences prefs = mActivity.getSharedPreferences(PREFS_FILENAME, 0);
-        String prefKey = DONT_SHOW_AGAIN_PREF_KEY + versionDownloadable;
-        return prefs.getBoolean(prefKey, false);
+        if (mActivity.get() != null) {
+            SharedPreferences prefs = mActivity.get().getSharedPreferences(PREFS_FILENAME, 0);
+            String prefKey = DONT_SHOW_AGAIN_PREF_KEY + versionDownloadable;
+            return prefs.getBoolean(prefKey, false);
+        }
+
+        return false;
     }
 
     /**
      * Show the Notice only if it's the first time or the number of the checks made is a multiple of the argument of setSuccessfulChecksRequired(int) method. (If you don't call setSuccessfulChecksRequired(int) the default is 5).
      */
     private boolean hasToShowNotice(String versionDownloadable) {
-        SharedPreferences prefs = mActivity.getSharedPreferences(PREFS_FILENAME, 0);
+        SharedPreferences prefs = mActivity.get().getSharedPreferences(PREFS_FILENAME, 0);
         String prefKey = SUCCESSFUL_CHEKS_PREF_KEY + versionDownloadable;
         int mChecksMade = prefs.getInt(prefKey, 0);
         if (mChecksMade % mSuccessfulChecksRequired == 0 || mChecksMade == 0) {
@@ -274,26 +283,31 @@ public class UpdateChecker implements ASyncCheckResult, UpdateCheckerResult {
      * Update number of checks for this version downloadable from the Store.
      */
     private void saveNumberOfChecksForUpdatedVersion(String versionDownloadable, int mChecksMade) {
-        mChecksMade++;
-        SharedPreferences prefs = mActivity.getSharedPreferences(PREFS_FILENAME, 0);
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putInt(SUCCESSFUL_CHEKS_PREF_KEY + versionDownloadable, mChecksMade);
-        editor.commit();
-
+        if (mActivity.get() != null) {
+            mChecksMade++;
+            SharedPreferences prefs = mActivity.get().getSharedPreferences(PREFS_FILENAME, 0);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putInt(SUCCESSFUL_CHEKS_PREF_KEY + versionDownloadable, mChecksMade);
+            editor.commit();
+        }
     }
 
     /**
      * Show Dialog
      */
     public void showDialog(String versionDownloadable) {
-        Dialog.show(mActivity, mStore, versionDownloadable, mNoticeIconResId);
+        if (mActivity.get() != null) {
+            Dialog.show(mActivity.get(), mStore, versionDownloadable, mNoticeIconResId);
+        }
     }
 
     /**
      * Show Notification
      */
     public static void showNotification() {
-        Notification.show(mActivity, mStore, mNoticeIconResId);
+        if (mActivity.get() != null) {
+            Notification.show(mActivity.get(), mStore, mNoticeIconResId);
+        }
     }
 
     /**
